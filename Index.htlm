@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RED PRO Data Builder – V2.9 avec mémoire</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --card: #131a2b;
+            --border: #1f2a44;
+            --accent: #e63946;
+            --accent-hover: #c92a3a;
+            --text: #e0e0e0;
+            --label: #a0aec0;
+            --input-bg: #1a2333;
+            --shadow: 0 4px 24px rgba(0,0,0,0.6);
+            --radius: 10px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 2rem 1.5rem;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 2rem; }
+        header { text-align: center; }
+        h1 { font-size: 2.3rem; font-weight: 700; color: white; letter-spacing: -0.5px; }
+        .accent { color: var(--accent); }
+        .subtitle { color: var(--label); margin-top: 0.3rem; font-size: 0.95rem; }
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.8rem;
+            box-shadow: var(--shadow);
+        }
+        h2 { font-size: 1.3rem; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.4rem; color: white; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem 1.2rem;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+        label {
+            font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.5px; color: var(--label);
+        }
+        input, textarea, select {
+            background: var(--input-bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.6rem 0.8rem; color: var(--text);
+            font-family: inherit; font-size: 0.9rem; transition: 0.2s;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none; border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(230,57,70,0.15);
+        }
+        .form-actions { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+        button {
+            background: var(--accent); color: white; border: none;
+            padding: 0.7rem 1.4rem; border-radius: 6px; font-weight: 600;
+            cursor: pointer; transition: 0.2s; font-size: 0.9rem;
+            display: inline-flex; align-items: center; gap: 0.3rem;
+        }
+        button:hover { background: var(--accent-hover); }
+        button.secondary { background: #2d3748; }
+        button.secondary:hover { background: #3a4a5e; }
+        .team-list { list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .team-badge {
+            background: #1e293b; padding: 0.5rem 1rem; border-radius: 40px;
+            display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;
+            border: 1px solid #2d3a50;
+        }
+        .team-badge button {
+            background: none; color: #94a3b8; padding: 0.1rem 0.3rem;
+            font-size: 1.1rem; line-height: 1;
+        }
+        .team-badge button:hover { color: var(--accent); background: none; }
+        .json-preview {
+            width: 100%; min-height: 280px; font-family: 'Fira Code', monospace;
+            font-size: 0.85rem; background: #0a0e14; border: 1px solid var(--border);
+            border-radius: 8px; padding: 1rem; color: #cbd5e0; resize: vertical;
+        }
+        .action-row { display: flex; gap: 0.8rem; margin-top: 1rem; flex-wrap: wrap; }
+        .message {
+            padding: 0.8rem 1rem; border-radius: 8px; font-weight: 500; margin-top: 0.5rem;
+        }
+        .success { background: #1a3a2a; color: #7ee0a0; border: 1px solid #2c5a40; }
+        .warning { background: #3b341a; color: #f0c46a; border: 1px solid #5e4d20; }
+        .info-note {
+            font-size: 0.8rem; color: #94a3b8; margin-top: 0.4rem;
+            border-left: 3px solid var(--accent); padding-left: 0.7rem;
+        }
+        .required-star { color: var(--accent); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1><span class="accent">RED PRO</span> Data Builder V2.9</h1>
+        <p class="subtitle">Ratios décimaux conformes – sauvegarde automatique dans le navigateur</p>
+    </header>
+
+    <!-- Formulaire principal -->
+    <div class="panel">
+        <h2>📋 Données de l’équipe <span style="font-size:0.7rem;color:var(--label);">(moyennes/match)</span></h2>
+        <div class="form-grid" id="team-form"></div>
+        <div class="info-note">
+            ⚡ Scores des 5 derniers matchs (ex: <code>2-1,0-0,3-1</code>) → convertis en W/D/L pour l'export.
+            Champs marqués * optionnels (si vides, la qualité des données diminue).
+        </div>
+        <div class="form-actions">
+            <button id="add-team-btn">➕ Ajouter au dataset</button>
+            <button id="clear-form-btn" class="secondary">🗑 Vider le formulaire</button>
+        </div>
+    </div>
+
+    <!-- Liste des équipes -->
+    <div class="panel">
+        <h2>📦 Équipes enregistrées</h2>
+        <ul class="team-list" id="team-list"></ul>
+        <p id="empty-teams-msg" style="color:#7a8599; margin-top:0.8rem;">Aucune équipe ajoutée.</p>
+        <div class="form-actions" style="margin-top:1rem;">
+            <button id="clear-storage-btn" class="secondary">🗑 Effacer toutes les données sauvegardées</button>
+        </div>
+    </div>
+
+    <!-- Aperçu JSON -->
+    <div class="panel">
+        <h2>📄 Aperçu JSON</h2>
+        <textarea id="json-output" class="json-preview" readonly></textarea>
+        <div class="action-row">
+            <button id="copy-json-btn">📋 Copier JSON</button>
+            <button id="export-json-btn">⬇ Exporter JSON</button>
+        </div>
+        <div id="message-area"></div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // ---------- PERSISTANCE AVEC LOCALSTORAGE ----------
+        const STORAGE_KEY = 'redpro_teams';
+
+        function loadTeamsFromStorage() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch (e) {
+                console.warn('Erreur de chargement depuis le localStorage, réinitialisation.');
+            }
+            return [];
+        }
+
+        function saveTeamsToStorage(teamsArray) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(teamsArray));
+            } catch (e) {
+                showMessage('Erreur de sauvegarde dans le localStorage.', 'warning');
+            }
+        }
+
+        // Initialisation des équipes depuis le localStorage
+        const teams = loadTeamsFromStorage();
+        const VERSION = "2.9.0";
+
+        // ---------- OUTILS MATHÉMATIQUES ----------
+        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+        function avg(arr) { return arr.reduce((a,b)=>a+b,0) / Math.max(1, arr.length); }
+
+        function safeSigmoid(x) {
+            const v = clamp(x, -3, 3);
+            return 1 / (1 + Math.exp(-v));
+        }
+
+        // ---------- CHAMPS DU FORMULAIRE ----------
+        const INPUT_FIELDS = [
+            { id: "name", label: "Nom de l’équipe", type: "text", placeholder: "ex : Real Madrid", required: true },
+            { id: "elo", label: "Elo", type: "number", placeholder: "1800", required: true },
+            { id: "matchesPlayed", label: "Matchs joués (total)", type: "number", placeholder: "30", required: true },
+            { id: "goalsScored", label: "Buts marqués / match", type: "number", placeholder: "2.27", required: true, step: "0.01" },
+            { id: "goalsConceded", label: "Buts encaissés / match", type: "number", placeholder: "0.83", required: true, step: "0.01" },
+            { id: "xG", label: "xG / match", type: "number", placeholder: "1.95", required: true, step: "0.01" },
+            { id: "xGA", label: "xGA / match", type: "number", placeholder: "0.96", required: true, step: "0.01" },
+            { id: "xG_home", label: "xG domicile / match", type: "number", placeholder: "2.14", required: true, step: "0.01" },
+            { id: "xGA_home", label: "xGA domicile / match", type: "number", placeholder: "0.76", required: true, step: "0.01" },
+            { id: "xG_away", label: "xG extérieur / match", type: "number", placeholder: "1.75", required: true, step: "0.01" },
+            { id: "xGA_away", label: "xGA extérieur / match", type: "number", placeholder: "1.17", required: true, step: "0.01" },
+            { id: "formLast5", label: "Forme récente (5 derniers scores)", type: "text", placeholder: "2-1,0-0,3-1,1-1,2-2", required: true },
+            { id: "league", label: "Championnat", type: "text", placeholder: "ex : La Liga", required: true },
+            { id: "shotsFor", label: "Tirs / match *", type: "number", placeholder: "19.3", required: false, step: "0.1" },
+            { id: "shotsAgainst", label: "Tirs concédés / match *", type: "number", placeholder: "10.2", required: false, step: "0.1" },
+            { id: "cornersFor", label: "Corners obtenus / match *", type: "number", placeholder: "5.5", required: false, step: "0.1" },
+            { id: "cornersAgainst", label: "Corners concédés / match *", type: "number", placeholder: "3.2", required: false, step: "0.1" },
+            { id: "ppda", label: "PPDA / match *", type: "number", placeholder: "8.4", required: false, step: "0.1" },
+            { id: "injuriesImpact", label: "Impact blessures (0-1)", type: "number", placeholder: "0.10", required: false, step: "0.01" },
+            { id: "daysRest", label: "Jours de repos", type: "number", placeholder: "5", required: false },
+            { id: "travelDistance", label: "Distance parcourue (km)", type: "number", placeholder: "150", required: false },
+            { id: "fixtureCongestion", label: "Congestion calendrier (0-5)", type: "number", placeholder: "2", required: false, step: "0.1" }
+        ];
+
+        // ---------- PARSING DES SCORES ----------
+        function parseScores(formStr) {
+            if (!formStr || typeof formStr !== 'string') return [];
+            const parts = formStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            const scores = [];
+            for (const p of parts) {
+                const m = p.match(/^(\d+)-(\d+)$/);
+                if (m) scores.push({ goalsFor: parseInt(m[1]), goalsAgainst: parseInt(m[2]) });
+                else return null;
+            }
+            return scores;
+        }
+
+        function scoresToWDL(scores) {
+            return scores.map(m => m.goalsFor > m.goalsAgainst ? 'W' : (m.goalsFor === m.goalsAgainst ? 'D' : 'L'));
+        }
+
+        // ---------- ESTIMATIONS DES CHAMPS MANQUANTS ----------
+        function estimateMissingFields(raw) {
+            const elo = raw.elo || 1500;
+            const xG = raw.xG || 0;
+            const xGA = raw.xGA || 0;
+            const shotsFor = raw.shotsFor > 0 ? raw.shotsFor : parseFloat((xG / 0.105).toFixed(1));
+            const shotsAgainst = raw.shotsAgainst > 0 ? raw.shotsAgainst : parseFloat((xGA / 0.105).toFixed(1));
+            const cornersFor = raw.cornersFor > 0 ? raw.cornersFor : parseFloat((shotsFor * 0.18).toFixed(1));
+            const cornersAgainst = raw.cornersAgainst > 0 ? raw.cornersAgainst : parseFloat((shotsAgainst * 0.16).toFixed(1));
+            const ppda = raw.ppda > 0 ? raw.ppda : Math.max(5, 14 - (elo - 1400) * 0.008);
+            const shotsOnTargetFor = parseFloat((shotsFor * 0.34).toFixed(1));
+            const shotsOnTargetAgainst = parseFloat((shotsAgainst * 0.32).toFixed(1));
+            const bigChancesCreated = parseFloat((xG / 0.38).toFixed(1));
+            const bigChancesConceded = parseFloat((xGA / 0.38).toFixed(1));
+            const possession = Math.min(72, Math.max(28, 50 + (elo - 1500) * 0.015 + (raw.goalsScored - raw.goalsConceded) * 0.22));
+            const passAccuracy = Math.min(92, Math.max(60, 75 + (possession - 50) * 0.6 + (elo - 1500) * 0.01));
+            const scores = parseScores(raw.formLast5);
+            let eloTrend = raw.eloTrend || 0;
+            if (!raw.eloTrend && scores && scores.length > 0) {
+                const points = scores.reduce((sum, m) => sum + (m.goalsFor > m.goalsAgainst ? 3 : (m.goalsFor === m.goalsAgainst ? 1 : 0)), 0);
+                eloTrend = (points / scores.length - 1.5) * 6;
+            }
+            return {
+                shotsFor, shotsAgainst, cornersFor, cornersAgainst, ppda,
+                shotsOnTargetFor, shotsOnTargetAgainst,
+                bigChancesCreated, bigChancesConceded,
+                possession: Math.round(possession * 10) / 10,
+                passAccuracy: Math.round(passAccuracy * 10) / 10,
+                eloTrend
+            };
+        }
+
+        // ---------- CALCUL DES INDICES (RATIOS DÉCIMAUX CONFORMES) ----------
+        function computeIndices(data, scores) {
+            const {
+                goalsScored, goalsConceded, matchesPlayed,
+                shotsFor, shotsOnTargetFor, shotsAgainst,
+                cornersFor, cornersAgainst, ppda,
+                xG, xGA, xG_home, xGA_home, xG_away, xGA_away,
+                possession,
+                elo
+            } = data;
+
+            const shotRatio = shotsFor / Math.max(0.01, shotsAgainst);
+            const cornerRatio = cornersFor / Math.max(0.01, cornersAgainst);
+
+            let goalsScoredLast5 = 0, goalsConcededLast5 = 0;
+            let cleanSheets = 0, btts = 0, over25 = 0, under25 = 0;
+            let wins = 0, draws = 0, losses = 0, pointsLast5 = 0;
+            scores.forEach(m => {
+                goalsScoredLast5 += m.goalsFor;
+                goalsConcededLast5 += m.goalsAgainst;
+                if (m.goalsAgainst === 0) cleanSheets++;
+                if (m.goalsFor > 0 && m.goalsAgainst > 0) btts++;
+                if (m.goalsFor + m.goalsAgainst > 2) over25++;
+                else under25++;
+                if (m.goalsFor > m.goalsAgainst) { wins++; pointsLast5 += 3; }
+                else if (m.goalsFor === m.goalsAgainst) { draws++; pointsLast5 += 1; }
+                else losses++;
+            });
+            const numLast5 = scores.length || 1;
+
+            const shotConversion = +(goalsScored / Math.max(0.01, shotsOnTargetFor)).toFixed(2);
+            const offensiveEfficiency = +(goalsScored / (xG + 0.01)).toFixed(2);
+            const defensiveEfficiency = +(xGA / (goalsConceded + 0.01)).toFixed(2);
+            const shootingEfficiency = +(shotsOnTargetFor / (shotsFor * 0.34)).toFixed(2);
+            const dominationIndex = +((possession/100 + shotRatio + cornerRatio) / 3).toFixed(2);
+            const pressureIndex = +(10 / Math.max(ppda, 1)).toFixed(2);
+            const fatigueIndex = +(matchesPlayed / 60).toFixed(2);
+            const formIndex = +(pointsLast5 / (numLast5 * 3)).toFixed(2);
+
+            let stabilityIndex = 0.50;
+            if (scores.length >= 2) {
+                const pointsArr = scores.map((m, i) => {
+                    const weight = 0.5 + (i / scores.length);
+                    let pts = m.goalsFor > m.goalsAgainst ? 3 : (m.goalsFor === m.goalsAgainst ? 1 : 0);
+                    return pts * weight;
+                });
+                const mean = avg(pointsArr);
+                const variance = avg(pointsArr.map(p => Math.pow(p - mean, 2)));
+                const stdDev = Math.sqrt(variance);
+                stabilityIndex = +(clamp(1 - stdDev / 3, 0, 1)).toFixed(2);
+            }
+
+            const eloScore = safeSigmoid((elo - 1500) / 200);
+            const confidenceIndex = +(0.5 * formIndex + 0.5 * eloScore).toFixed(2);
+
+            const homeStrength = +((xG_home - xGA_home) / (xG_home + xGA_home + 0.01)).toFixed(2);
+            const awayStrength = +((xG_away - xGA_away) / (xG_away + xGA_away + 0.01)).toFixed(2);
+            const goalDifference = Math.round((goalsScored - goalsConceded) * matchesPlayed);
+
+            return {
+                shotConversion,
+                cleanSheets: +(cleanSheets / numLast5).toFixed(2),
+                btts: +(btts / numLast5).toFixed(2),
+                over25: +(over25 / numLast5).toFixed(2),
+                under25: +(under25 / numLast5).toFixed(2),
+                pointsLast5,
+                winsLast5: wins,
+                drawsLast5: draws,
+                lossesLast5: losses,
+                goalsScoredLast5,
+                goalsConcededLast5,
+                avgGoalsScored: goalsScored,
+                avgGoalsConceded: goalsConceded,
+                goalDifference,
+                homeStrength,
+                awayStrength,
+                offensiveEfficiency,
+                defensiveEfficiency,
+                shootingEfficiency,
+                dominationIndex,
+                pressureIndex,
+                fatigueIndex,
+                stabilityIndex,
+                formIndex,
+                confidenceIndex,
+                dataQualityScore: 100,
+                recencyWeight: 0.98,
+                updatedAt: new Date().toISOString()
+            };
+        }
+
+        // ---------- CONSTRUCTION DE L'OBJET ÉQUIPE ----------
+        function buildTeamObject(formData) {
+            const numericFields = [
+                "elo", "matchesPlayed", "goalsScored", "goalsConceded",
+                "xG", "xGA", "xG_home", "xGA_home", "xG_away", "xGA_away"
+            ];
+            const raw = { ...formData };
+            numericFields.forEach(f => { raw[f] = parseFloat(raw[f]) || 0; });
+
+            const optionalKeys = ["shotsFor", "shotsAgainst", "cornersFor", "cornersAgainst", "ppda"];
+            let missingCount = 0;
+            optionalKeys.forEach(k => {
+                raw[k] = parseFloat(raw[k]) || 0;
+                if (raw[k] === 0) missingCount++;
+            });
+
+            const scores = parseScores(raw.formLast5);
+            if (!scores || scores.length === 0) {
+                throw new Error("Scores invalides. Format attendu : '2-1,0-0,3-1'.");
+            }
+
+            const estimated = estimateMissingFields(raw);
+
+            const contextDefaults = {
+                injuriesImpact: 0.10,
+                suspensionSeverity: 0.0,
+                daysRest: 5,
+                travelDistance: 150,
+                fixtureCongestion: 2
+            };
+            const context = {};
+            ["injuriesImpact", "daysRest", "travelDistance", "fixtureCongestion"].forEach(k => {
+                context[k] = raw[k] !== '' && !isNaN(parseFloat(raw[k])) ? parseFloat(raw[k]) : contextDefaults[k];
+            });
+
+            const fullData = {
+                name: raw.name,
+                league: raw.league,
+                elo: raw.elo,
+                eloTrend: estimated.eloTrend,
+                matchesPlayed: raw.matchesPlayed,
+                goalsScored: raw.goalsScored,
+                goalsConceded: raw.goalsConceded,
+                xG: raw.xG,
+                xGA: raw.xGA,
+                xG_home: raw.xG_home,
+                xG_away: raw.xG_away,
+                xGA_home: raw.xGA_home,
+                xGA_away: raw.xGA_away,
+                shotsFor: raw.shotsFor > 0 ? raw.shotsFor : estimated.shotsFor,
+                shotsAgainst: raw.shotsAgainst > 0 ? raw.shotsAgainst : estimated.shotsAgainst,
+                shotsOnTargetFor: estimated.shotsOnTargetFor,
+                shotsOnTargetAgainst: estimated.shotsOnTargetAgainst,
+                bigChancesCreated: estimated.bigChancesCreated,
+                bigChancesConceded: estimated.bigChancesConceded,
+                cornersFor: raw.cornersFor > 0 ? raw.cornersFor : estimated.cornersFor,
+                cornersAgainst: raw.cornersAgainst > 0 ? raw.cornersAgainst : estimated.cornersAgainst,
+                possession: estimated.possession,
+                passAccuracy: estimated.passAccuracy,
+                ppda: raw.ppda > 0 ? raw.ppda : estimated.ppda,
+                formLast5: scoresToWDL(scores),
+                injuriesImpact: context.injuriesImpact,
+                suspensionSeverity: 0.0,
+                daysRest: context.daysRest,
+                travelDistance: context.travelDistance,
+                fixtureCongestion: context.fixtureCongestion,
+                neutralMatches: 0,
+                neutralXG: 0,
+                neutralXGA: 0,
+                h2hByOpponent: {}
+            };
+
+            const indices = computeIndices(fullData, scores);
+            indices.dataQualityScore = Math.max(40, 100 - missingCount * 12);
+
+            return { ...fullData, ...indices };
+        }
+
+        // ---------- JSON FINAL ----------
+        function buildFinalJSON() {
+            return {
+                version: VERSION,
+                exportedAt: new Date().toISOString(),
+                teams: teams,
+                history: [],
+                tracking: [],
+                leagues: [],
+                lastAnalysis: null
+            };
+        }
+
+        // ---------- INTERFACE ----------
+        const formContainer = document.getElementById('team-form');
+        const addBtn = document.getElementById('add-team-btn');
+        const clearBtn = document.getElementById('clear-form-btn');
+        const teamListEl = document.getElementById('team-list');
+        const emptyMsg = document.getElementById('empty-teams-msg');
+        const jsonOutput = document.getElementById('json-output');
+        const copyBtn = document.getElementById('copy-json-btn');
+        const exportBtn = document.getElementById('export-json-btn');
+        const messageArea = document.getElementById('message-area');
+        const clearStorageBtn = document.getElementById('clear-storage-btn');
+
+        function buildForm() {
+            formContainer.innerHTML = '';
+            INPUT_FIELDS.forEach(field => {
+                const div = document.createElement('div');
+                div.className = 'form-group';
+                const label = document.createElement('label');
+                label.innerHTML = field.label + (field.required ? ' <span class="required-star">★</span>' : '');
+                const input = document.createElement('input');
+                input.type = field.type;
+                input.id = `input-${field.id}`;
+                input.placeholder = field.placeholder || '';
+                if (field.type === 'number') input.step = field.step || 'any';
+                if (field.required) input.required = true;
+                div.appendChild(label);
+                div.appendChild(input);
+                formContainer.appendChild(div);
+            });
+        }
+
+        function getFormData() {
+            const data = {};
+            INPUT_FIELDS.forEach(f => {
+                const el = document.getElementById(`input-${f.id}`);
+                if (el) data[f.id] = el.value.trim();
+            });
+            return data;
+        }
+
+        function clearForm() {
+            INPUT_FIELDS.forEach(f => {
+                const el = document.getElementById(`input-${f.id}`);
+                if (el) el.value = '';
+            });
+        }
+
+        function validateFormData(data) {
+            if (!data.name) return "Le nom est obligatoire.";
+            const scores = parseScores(data.formLast5);
+            if (!scores || scores.length === 0) return "Scores invalides. Format : '2-1,0-0,3-1'.";
+            const requiredNums = ["elo", "matchesPlayed", "goalsScored", "goalsConceded", "xG", "xGA", "xG_home", "xGA_home", "xG_away", "xGA_away"];
+            for (let f of requiredNums) {
+                if (data[f] === '' || isNaN(parseFloat(data[f]))) return `Le champ ${f} est obligatoire.`;
+            }
+            return null;
+        }
+
+        function showMessage(text, type = 'success') {
+            messageArea.innerHTML = `<div class="message ${type}">${text}</div>`;
+            setTimeout(() => { messageArea.innerHTML = ''; }, 4000);
+        }
+
+        function refreshUI() {
+            teamListEl.innerHTML = '';
+            if (teams.length === 0) {
+                emptyMsg.style.display = 'block';
+            } else {
+                emptyMsg.style.display = 'none';
+                teams.forEach((team, idx) => {
+                    const li = document.createElement('li');
+                    li.className = 'team-badge';
+                    li.innerHTML = `<span>${escapeHTML(team.name)}</span>`;
+                    const delBtn = document.createElement('button');
+                    delBtn.innerHTML = '✕';
+                    delBtn.title = 'Supprimer';
+                    delBtn.addEventListener('click', () => {
+                        teams.splice(idx, 1);
+                        saveTeamsToStorage(teams); // sauvegarde après suppression
+                        refreshUI();
+                    });
+                    li.appendChild(delBtn);
+                    teamListEl.appendChild(li);
+                });
+            }
+            jsonOutput.value = JSON.stringify(buildFinalJSON(), null, 2);
+        }
+
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function addTeamFromForm() {
+            const formData = getFormData();
+            const error = validateFormData(formData);
+            if (error) {
+                showMessage(error, 'warning');
+                return;
+            }
+            try {
+                const teamObj = buildTeamObject(formData);
+                teams.push(teamObj);
+                saveTeamsToStorage(teams); // sauvegarde après ajout
+                clearForm();
+                refreshUI();
+                showMessage(`✅ "${teamObj.name}" ajouté. Qualité données : ${teamObj.dataQualityScore}/100`);
+            } catch (e) {
+                showMessage("Erreur : " + e.message, 'warning');
+            }
+        }
+
+        function copyJSON() {
+            const text = JSON.stringify(buildFinalJSON(), null, 2);
+            navigator.clipboard.writeText(text).then(
+                () => showMessage('📋 JSON copié !'),
+                () => { jsonOutput.select(); document.execCommand('copy'); showMessage('📋 JSON copié (fallback).'); }
+            );
+        }
+
+        function exportJSON() {
+            const blob = new Blob([JSON.stringify(buildFinalJSON(), null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `REDPRO_v2.9_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showMessage('⬇ Fichier exporté.');
+        }
+
+        function clearAllData() {
+            if (confirm('Supprimer définitivement toutes les équipes sauvegardées ?')) {
+                teams.length = 0;
+                saveTeamsToStorage(teams);
+                refreshUI();
+                showMessage('Toutes les données ont été effacées.', 'success');
+            }
+        }
+
+        // Événements
+        addBtn.addEventListener('click', addTeamFromForm);
+        clearBtn.addEventListener('click', clearForm);
+        copyBtn.addEventListener('click', copyJSON);
+        exportBtn.addEventListener('click', exportJSON);
+        clearStorageBtn.addEventListener('click', clearAllData);
+
+        // Initialisation
+        buildForm();
+        refreshUI();
+        // Si des équipes étaient déjà stockées, on les affiche
+        if (teams.length > 0) {
+            showMessage(`${teams.length} équipe(s) chargée(s) depuis la mémoire.`, 'success');
+        }
+    })();
+</script>
+</body>
+</html>
