@@ -419,6 +419,170 @@
 
 <script>
 // ======================================================================
+// 0. NORMALISATION DES NOMS D'ÉQUIPES - VERSION COMPLÈTE ET ROBUSTE
+// ======================================================================
+const TEAM_ALIASES = {
+    // Manchester City
+    'Man City': 'Manchester City',
+    'Manchester C': 'Manchester City',
+    'MCI': 'Manchester City',
+    'Manchester City': 'Manchester City',
+    
+    // Manchester United
+    'Man United': 'Manchester United',
+    'Manchester Utd': 'Manchester United',
+    'MUFC': 'Manchester United',
+    'Manchester United': 'Manchester United',
+    
+    // Newcastle
+    'Newcastle': 'Newcastle United',
+    'Newcastle Utd': 'Newcastle United',
+    'NUFC': 'Newcastle United',
+    'Newcastle United': 'Newcastle United',
+    
+    // Nottingham Forest
+    'Nott\'m Forest': 'Nottingham Forest',
+    'Nottm Forest': 'Nottingham Forest',
+    'NFFC': 'Nottingham Forest',
+    'Nottingham Forest': 'Nottingham Forest',
+    
+    // Wolverhampton
+    'Wolves': 'Wolverhampton Wanderers',
+    'Wolverhampton': 'Wolverhampton Wanderers',
+    'WOL': 'Wolverhampton Wanderers',
+    'Wolverhampton Wanderers': 'Wolverhampton Wanderers',
+    
+    // Tottenham
+    'Tottenham': 'Tottenham',
+    'Tottenham Hotspur': 'Tottenham',
+    'Spurs': 'Tottenham',
+    'THFC': 'Tottenham',
+    
+    // West Ham
+    'West Ham': 'West Ham',
+    'West Ham United': 'West Ham',
+    'WHU': 'West Ham',
+    
+    // Brighton
+    'Brighton': 'Brighton',
+    'Brighton & Hove Albion': 'Brighton',
+    'BHA': 'Brighton',
+    
+    // Crystal Palace
+    'Crystal Palace': 'Crystal Palace',
+    'C Palace': 'Crystal Palace',
+    'CPFC': 'Crystal Palace',
+    
+    // Sheffield United
+    'Sheffield United': 'Sheffield United',
+    'Sheffield Utd': 'Sheffield United',
+    'SUFC': 'Sheffield United',
+    
+    // Aston Villa
+    'Aston Villa': 'Aston Villa',
+    'AVFC': 'Aston Villa',
+    
+    // Brentford
+    'Brentford': 'Brentford',
+    'BFC': 'Brentford',
+    
+    // Bournemouth
+    'Bournemouth': 'Bournemouth',
+    'AFC Bournemouth': 'Bournemouth',
+    'BOU': 'Bournemouth',
+    
+    // Everton
+    'Everton': 'Everton',
+    'EFC': 'Everton',
+    
+    // Fulham
+    'Fulham': 'Fulham',
+    'FFC': 'Fulham',
+    
+    // Burnley
+    'Burnley': 'Burnley',
+    'BUR': 'Burnley',
+    
+    // Luton
+    'Luton': 'Luton',
+    'Luton Town': 'Luton',
+    'LUT': 'Luton',
+    
+    // Chelsea
+    'Chelsea': 'Chelsea',
+    'CFC': 'Chelsea',
+    
+    // Liverpool
+    'Liverpool': 'Liverpool',
+    'LFC': 'Liverpool',
+    
+    // Arsenal
+    'Arsenal': 'Arsenal',
+    'AFC': 'Arsenal',
+    
+    // Leicester
+    'Leicester': 'Leicester',
+    'Leicester City': 'Leicester',
+    
+    // Leeds
+    'Leeds': 'Leeds',
+    'Leeds United': 'Leeds',
+    
+    // Southampton
+    'Southampton': 'Southampton'
+};
+
+function normalizeTeamName(name) {
+    if (!name) return name;
+    const trimmed = name.trim();
+    
+    // 1. Recherche exacte dans le dictionnaire
+    if (TEAM_ALIASES[trimmed]) return TEAM_ALIASES[trimmed];
+    
+    // 2. Recherche insensible à la casse
+    const lowerTrimmed = trimmed.toLowerCase();
+    for (const [alias, standard] of Object.entries(TEAM_ALIASES)) {
+        if (lowerTrimmed === alias.toLowerCase()) {
+            return standard;
+        }
+        if (lowerTrimmed === standard.toLowerCase()) {
+            return standard;
+        }
+    }
+    
+    // 3. Recherche par inclusion
+    for (const [alias, standard] of Object.entries(TEAM_ALIASES)) {
+        const lowerAlias = alias.toLowerCase();
+        const lowerStandard = standard.toLowerCase();
+        if (lowerTrimmed.includes(lowerAlias) || lowerAlias.includes(lowerTrimmed)) {
+            return standard;
+        }
+        if (lowerTrimmed.includes(lowerStandard) || lowerStandard.includes(lowerTrimmed)) {
+            return standard;
+        }
+    }
+    
+    // 4. Recherche par mots-clés
+    const words = trimmed.split(' ').filter(w => w.length > 2);
+    for (const word of words) {
+        const lowerWord = word.toLowerCase();
+        for (const [alias, standard] of Object.entries(TEAM_ALIASES)) {
+            const lowerAlias = alias.toLowerCase();
+            const lowerStandard = standard.toLowerCase();
+            if (lowerAlias.includes(lowerWord) || lowerStandard.includes(lowerWord)) {
+                return standard;
+            }
+        }
+    }
+    
+    // 5. Si c'est déjà un nom standard, le retourner
+    const standardNames = Object.values(TEAM_ALIASES);
+    if (standardNames.includes(trimmed)) return trimmed;
+    
+    return trimmed;
+}
+
+// ======================================================================
 // 1. UTILITAIRES
 // ======================================================================
 function safeNumber(v, f=0){ if(v===null||v===undefined)return f; const n=Number(v); return (isFinite(n)&&!isNaN(n)&&n>=0)?n:f; }
@@ -521,7 +685,6 @@ const Engine = {
 
     _extractYear(seasonName){ if(!seasonName)return 0; const m=seasonName.match(/\b(19|20)\d{2}\b/); return m?parseInt(m[0]):0; },
 
-    // Paramètres calibrés stockés en localStorage
     getCalibratedParams(){
         try{
             const raw=localStorage.getItem('redProCalibration');
@@ -530,7 +693,6 @@ const Engine = {
                 if(p.weights && p.temperature) return p;
             }
         }catch(e){}
-        // Valeurs par défaut
         return { weights:{poisson:0.20,dixonColes:0.25,elo:0.15,form:0.10,offDef:0.20,monteCarlo:0.10,h2h:0}, temperature:1.45 };
     },
     saveCalibratedParams(weights, temperature){
@@ -539,13 +701,103 @@ const Engine = {
         }catch(e){}
     },
 
+    findTeamInSeasonData(teamName, seasonData) {
+        if (!teamName || !seasonData || seasonData.length === 0) return null;
+        
+        const normalized = normalizeTeamName(teamName);
+        const lowerNormalized = normalized.toLowerCase();
+        
+        // 1. Recherche exacte
+        let found = seasonData.find(s => {
+            const sName = normalizeTeamName(s.team);
+            return sName === normalized;
+        });
+        if (found) return found;
+        
+        // 2. Recherche insensible à la casse
+        found = seasonData.find(s => {
+            const sName = normalizeTeamName(s.team);
+            return sName.toLowerCase() === lowerNormalized;
+        });
+        if (found) return found;
+        
+        // 3. Recherche par inclusion
+        found = seasonData.find(s => {
+            const sName = normalizeTeamName(s.team).toLowerCase();
+            return sName.includes(lowerNormalized) || lowerNormalized.includes(sName);
+        });
+        if (found) return found;
+        
+        // 4. Recherche par mots-clés
+        const teamWords = lowerNormalized.split(' ').filter(w => w.length > 2);
+        for (const item of seasonData) {
+            const sName = normalizeTeamName(item.team).toLowerCase();
+            const sWords = sName.split(' ').filter(w => w.length > 2);
+            
+            for (const word of teamWords) {
+                if (sWords.some(w => w === word || w.includes(word) || word.includes(w))) {
+                    return item;
+                }
+            }
+            
+            // Si le dernier mot correspond (ex: "City" -> "City")
+            const lastTeamWord = teamWords[teamWords.length - 1];
+            const lastSWord = sWords[sWords.length - 1];
+            if (lastTeamWord && lastSWord && 
+                (lastTeamWord === lastSWord || 
+                 lastTeamWord.includes(lastSWord) || 
+                 lastSWord.includes(lastTeamWord))) {
+                return item;
+            }
+        }
+        
+        // 5. Recherche par mots spéciaux
+        const specialMap = {
+            'man': ['manchester'],
+            'newcastle': ['newcastle'],
+            'wolves': ['wolverhampton'],
+            'nott': ['nottingham'],
+            'sheffield': ['sheffield'],
+            'crystal': ['crystal'],
+            'west': ['west'],
+            'brighton': ['brighton'],
+            'tottenham': ['tottenham'],
+            'arsenal': ['arsenal'],
+            'chelsea': ['chelsea'],
+            'liverpool': ['liverpool'],
+            'everton': ['everton'],
+            'fulham': ['fulham'],
+            'burnley': ['burnley'],
+            'luton': ['luton'],
+            'brentford': ['brentford'],
+            'bournemouth': ['bournemouth'],
+            'aston': ['aston'],
+            'leeds': ['leeds'],
+            'leicester': ['leicester'],
+            'southampton': ['southampton']
+        };
+        
+        for (const [key, values] of Object.entries(specialMap)) {
+            if (lowerNormalized.includes(key)) {
+                for (const item of seasonData) {
+                    const sName = normalizeTeamName(item.team).toLowerCase();
+                    if (values.some(v => sName.includes(v))) {
+                        return item;
+                    }
+                }
+            }
+        }
+        
+        return null;
+    },
+
     async getWeightedStats(teamName, allSeasons, targetSeason=null){
         let totalWeight=0, weightedXG=0, weightedXGA=0, weightedGoals=0, weightedGA=0, weightedCornerF=0, weightedCornerA=0;
         let weightSum=0, currentYear=new Date().getFullYear();
         if(targetSeason){
             const seasonData=allSeasons.find(s=>s.seasonName===targetSeason);
             if(seasonData){
-                const stats=seasonData.data.find(item=>item.team===teamName);
+                const stats = this.findTeamInSeasonData(teamName, seasonData.data);
                 if(stats){
                     const m=stats.matches||0; if(m>0){
                         return { xG:stats.xG/m, xGA:stats.xGA/m, goals:stats.goals/m, ga:stats.ga/m, cornersFor: (stats.cornersFor||0)/m, cornersAgainst: (stats.cornersAgainst||0)/m, matches:m };
@@ -555,7 +807,7 @@ const Engine = {
             return null;
         }
         for(const season of allSeasons){
-            const stats=season.data.find(item=>item.team===teamName);
+            const stats = this.findTeamInSeasonData(teamName, season.data);
             if(!stats)continue;
             const year=this._extractYear(season.seasonName);
             if(year===0)continue;
@@ -652,13 +904,10 @@ const Engine = {
     _poissonAtkinson(lambda){ const c=0.767-3.36/lambda; const beta=Math.PI/Math.sqrt(3.0*lambda); const alpha=beta*lambda; const k=Math.log(c)-lambda-Math.log(beta); for(;;){ const u=Math.random(); const x=(alpha-Math.log((1.0-u)/u))/beta; const n=Math.floor(x+0.5); if(n<0)continue; const v=Math.random(); const y=alpha-beta*x; const temp=1.0+Math.exp(y); const lhs=y+Math.log(v/(temp*temp)); const rhs=k+n*Math.log(lambda)-this._logFactorial(n); if(lhs<=rhs)return n; } },
     _logFactorial(n){ if(n<=1)return 0; if(n>20)return n*Math.log(n)-n+0.5*Math.log(2*Math.PI*n); let r=0; for(let i=2;i<=n;i++)r+=Math.log(i); return r; },
 
-    // Poids calibrés (utilise les poids stockés)
     computeWeights(homeTeam, awayTeam, leagueConfig, h2hWeight=0){
         const cal=this.getCalibratedParams();
         const base={poisson:cal.weights.poisson||0.20, dixonColes:cal.weights.dixonColes||0.25, elo:cal.weights.elo||0.15, form:cal.weights.form||0.10, offDef:cal.weights.offDef||0.20, monteCarlo:cal.weights.monteCarlo||0.10, h2h:0};
-        // Réajuster si h2hWeight > 0
         if(h2hWeight>0){ base.h2h=Math.min(0.20,h2hWeight); const scale=(1-base.h2h)/(1-0.20); for(let k in base){ if(k!=='h2h')base[k]*=scale; } }
-        // Normaliser
         let total=Object.values(base).reduce((a,b)=>a+b,0);
         if(total>0)for(let k in base)base[k]/=total;
         return base;
@@ -697,7 +946,6 @@ const Engine = {
         return {p1:scaled[0], pX:scaled[1], p2:scaled[2]};
     },
 
-    // Méthode principale : utilise les paramètres calibrés
     async ensembleAsync(homeTeam, awayTeam, leagueConfig, h2hData=null, bookmakerOdds=null, terrain="home", absenceImpact=null, targetSeason=null){
         const allSeasonsData=await DB.getSeasons();
         if(allSeasonsData.length===0){
@@ -716,7 +964,6 @@ const Engine = {
         const {lA,lB}=this.computeLambdasFromWeightedStats(homeStats, awayStats, terrain);
         let lambdaA=lA, lambdaB=lB;
         if(absenceImpact){
-            // Plafonnement à -25% et label "estimé"
             if(absenceImpact.home && absenceImpact.home.xGReduction>0){
                 const reduction = Math.min(0.25, absenceImpact.home.xGReduction);
                 lambdaA *= (1 - reduction);
@@ -772,7 +1019,6 @@ const Engine = {
             cornerOver10 = Math.min(0.85, Math.max(0.15, avgCorners / 12));
         }
 
-        // All picks
         const allPicks=[
             {market:'1', prob:calibrated.p1},{market:'X', prob:calibrated.pX},{market:'2', prob:calibrated.p2},
             {market:'Over 2.5', prob:markets.Over25},{market:'Under 2.5', prob:markets.Under25},
@@ -780,7 +1026,6 @@ const Engine = {
             {market:'Over 10.5 Corners', prob:cornerOver10}
         ];
 
-        // Hot Pick = meilleur edge (si bookmakerOdds disponible)
         let hotPick=null;
         if(bookmakerOdds && bookmakerOdds.home>1.01 && bookmakerOdds.draw>1.01 && bookmakerOdds.away>1.01){
             const oddsMap={'1':bookmakerOdds.home,'X':bookmakerOdds.draw,'2':bookmakerOdds.away,'Over 2.5':bookmakerOdds.over25,'Under 2.5':bookmakerOdds.under25,'BTTS Oui':bookmakerOdds.bttsYes,'BTTS Non':bookmakerOdds.bttsNo};
@@ -797,7 +1042,6 @@ const Engine = {
                 }
             }
             if(!hotPick){
-                // fallback : plus haute probabilité
                 hotPick={...allPicks.reduce((a,b)=>a.prob>b.prob?a:b), edge:0, isHot:false};
             }
         } else {
@@ -810,7 +1054,6 @@ const Engine = {
             hotKelly=this.kellyCriterion(hotPick.prob, hotPick.bookmakerOdd, 0.25);
         }
 
-        // Value bets
         const valueBets=[];
         const cleanedOdds=this.cleanBookmakerOdds(bookmakerOdds);
         if(cleanedOdds && cleanedOdds.fairHomeProb!==undefined){
@@ -829,7 +1072,6 @@ const Engine = {
             });
         }
 
-        // Alerte si edge > 8%
         if(hotPick.edge && hotPick.edge>0.08){
             showToast(`🔥 VALUE BET : ${hotPick.market} - Edge ${(hotPick.edge*100).toFixed(1)}%`, true);
         }
@@ -851,7 +1093,6 @@ const Engine = {
         };
     },
 
-    // Fallback (sans pondération des saisons)
     ensemble(homeTeam, awayTeam, leagueConfig, h2hData=null, bookmakerOdds=null, terrain="home", absenceImpact=null){
         const getPerMatch=(team, stat)=>{ const m=team.matches||0; if(m<=0)return 0; if(team[stat]!==undefined&&team[stat]!==null&&isFinite(team[stat]))return team[stat]/m; return 0; };
         const homeXG=getPerMatch(homeTeam,'xG'); const homeXGA=getPerMatch(homeTeam,'xGA'); const awayXG=getPerMatch(awayTeam,'xG'); const awayXGA=getPerMatch(awayTeam,'xGA');
@@ -987,7 +1228,6 @@ const App = {
         const allMatches=await DB.getMatches();
         const total = allMatches.length;
         document.getElementById('totalMatchesImported').textContent = total;
-        // Mettre à jour aussi le compteur dans le backtest
         const btTotal = document.getElementById('btTotalMatches');
         if(btTotal) btTotal.textContent = total;
     },
@@ -1019,7 +1259,6 @@ const App = {
         names.forEach(n=>{ const opt=document.createElement('option'); opt.value=n; opt.textContent=n; if(n===current)opt.selected=true; select.appendChild(opt); });
     },
 
-    // Autocomplete, absence impact, etc. (méthodes inchangées, je les inclus)
     async setupAutocomplete() {
         const scorers=await DB.getScorers(); const allNames=scorers.map(s=>s.name);
         ['homeAbsences','awayAbsences'].forEach(inputId=>{
@@ -1080,7 +1319,6 @@ const App = {
         const homeReduction=Math.min(0.5,(homeImpact.xG/1.5)*0.7);
         const awayReduction=Math.min(0.5,(awayImpact.xG/1.5)*0.7);
         this.absenceImpact={ home:{ players:homePlayers, defenders:homeDefenders, cornerSpecialists:homeCornerSpecialists, xGReduction:homeReduction, xAReduction:Math.min(0.4,(homeImpact.xA/1.0)*0.6), goalsReduction:Math.min(0.4,(homeImpact.goals/1.0)*0.6), defIncrease:homeDefImpact, cornerImpact:homeCornerImpact, severity:homeReduction>0.3?'Élevé':(homeReduction>0.15?'Moyen':'Faible'), plafonned:false }, away:{ players:awayPlayers, defenders:awayDefenders, cornerSpecialists:awayCornerSpecialists, xGReduction:awayReduction, xAReduction:Math.min(0.4,(awayImpact.xA/1.0)*0.6), goalsReduction:Math.min(0.4,(awayImpact.goals/1.0)*0.6), defIncrease:awayDefImpact, cornerImpact:awayCornerImpact, severity:awayReduction>0.3?'Élevé':(awayReduction>0.15?'Moyen':'Faible'), plafonned:false } };
-        // Appliquer le plafond
         if(this.absenceImpact.home.xGReduction>0.25){ this.absenceImpact.home.xGReduction=0.25; this.absenceImpact.home.plafonned=true; }
         if(this.absenceImpact.away.xGReduction>0.25){ this.absenceImpact.away.xGReduction=0.25; this.absenceImpact.away.plafonned=true; }
         let html='<div style="font-weight:bold;color:var(--red);">🚑 Impact des absences (estimation non calibrée)</div>';
@@ -1295,15 +1533,16 @@ const App = {
         return data;
     },
 
-    // ===== ANALYSE =====
     async runAnalysis(){
         const homeName=document.getElementById('analysisHome').value.trim();
         const awayName=document.getElementById('analysisAway').value.trim();
         if(!homeName||!awayName)return showToast('❌ Deux équipes requises');
-        let homeTeam=await DB.getTeam(homeName);
-        let awayTeam=await DB.getTeam(awayName);
-        if(!homeTeam)homeTeam=createEmptyTeam(homeName);
-        if(!awayTeam)awayTeam=createEmptyTeam(awayName);
+        const homeNorm = normalizeTeamName(homeName);
+        const awayNorm = normalizeTeamName(awayName);
+        let homeTeam=await DB.getTeam(homeNorm);
+        let awayTeam=await DB.getTeam(awayNorm);
+        if(!homeTeam)homeTeam=createEmptyTeam(homeNorm);
+        if(!awayTeam)awayTeam=createEmptyTeam(awayNorm);
 
         const targetSeason=document.getElementById('analysisSeasonFilter').value||null;
         const leagueConfig=await LeagueConfig.getConfig(homeTeam.league||awayTeam.league);
@@ -1347,7 +1586,6 @@ const App = {
                              <div class="stat-row"><span>📈 Forme Ext. (${awayTeam.formLast5?.join('')||'N/A'})</span><span>${(result.formAway||0.5).toFixed(2)}</span></div>`;
                 if(result.cornerOver10) statsHtml+=`<div class="stat-row"><span>🎯 Over 10.5 Corners</span><span>${(result.cornerOver10*100).toFixed(1)}%</span></div>`;
             }
-            // Display absence impact if any
             let absenceHtml='';
             if(result.absenceImpact && (result.absenceImpact.home.players.length>0 || result.absenceImpact.away.players.length>0)){
                 absenceHtml=`<div class="section-title">🚑 Impact absences (estimé)</div>`;
@@ -1400,7 +1638,6 @@ const App = {
         }catch(e){ output.innerHTML=`<div class="error-block">${e.message}</div>`; }
     },
 
-    // ===== BACKTEST + CALIBRATION AMÉLIORÉ AVEC STATS =====
     async runFullBacktest(){
         const season=document.getElementById('backtestSeason').value||null;
         const allMatches=await DB.getMatches(season);
@@ -1412,13 +1649,13 @@ const App = {
         container.innerHTML='<div style="color:var(--cyan);">⏳ Calibration en cours...</div>';
         await new Promise(r=>setTimeout(r,100));
 
-        // Récupérer toutes les prédictions
         const allPredictions=[];
         let ignoredCount = 0;
         let ignoredReasons = { noSeason:0, noStats:0, other:0 };
         
         for(const match of allMatches){
-            const homeName=match.homeTeam; const awayName=match.awayTeam;
+            const homeName = normalizeTeamName(match.homeTeam);
+            const awayName = normalizeTeamName(match.awayTeam);
             let homeTeam=await DB.getTeam(homeName);
             let awayTeam=await DB.getTeam(awayName);
             if(!homeTeam)homeTeam=createEmptyTeam(homeName);
@@ -1427,9 +1664,13 @@ const App = {
             const seasonData=await DB.getSeasons(match.season);
             if(seasonData.length===0){ ignoredCount++; ignoredReasons.noSeason++; continue; }
             
-            const hStats=seasonData.find(s=>s.team===homeName);
-            const aStats=seasonData.find(s=>s.team===awayName);
-            if(!hStats||!aStats){ ignoredCount++; ignoredReasons.noStats++; continue; }
+            const hStats = Engine.findTeamInSeasonData(homeName, seasonData);
+            const aStats = Engine.findTeamInSeasonData(awayName, seasonData);
+            if(!hStats||!aStats){ 
+                ignoredCount++; 
+                ignoredReasons.noStats++; 
+                continue; 
+            }
             
             homeTeam.xG=hStats.xG; homeTeam.xGA=hStats.xGA; homeTeam.goals=hStats.goals; homeTeam.ga=hStats.ga; homeTeam.matches=hStats.matches;
             awayTeam.xG=aStats.xG; awayTeam.xGA=aStats.xGA; awayTeam.goals=aStats.goals; awayTeam.ga=aStats.ga; awayTeam.matches=aStats.matches;
@@ -1448,7 +1689,6 @@ const App = {
             }
         }
 
-        // Mettre à jour les stats
         const usedMatches = allPredictions.length;
         const ignoredMatches = totalMatches - usedMatches;
         document.getElementById('btUsedMatches').textContent = usedMatches;
@@ -1466,7 +1706,6 @@ const App = {
             return; 
         }
 
-        // Calibration de la température
         const temps=[];
         for(let t=0.8; t<=2.0; t+=0.05) temps.push(Math.round(t*100)/100);
         let bestTemp=1.45; let bestLogLoss=Infinity;
@@ -1492,11 +1731,9 @@ const App = {
             }
         }
 
-        // Appliquer la meilleure température
         Engine.saveCalibratedParams({poisson:0.20,dixonColes:0.25,elo:0.15,form:0.10,offDef:0.20,monteCarlo:0.10}, bestTemp);
         this.updateWeightStatus();
 
-        // Recalculer les métriques avec la meilleure température
         let total=0, correct=0, profit=0, totalStaked=0;
         let brierSum=0, logLossSum=0;
         const results=[];
@@ -1514,7 +1751,6 @@ const App = {
             brierSum += brier; logLossSum += ll;
             results.push({match:`${p.match.homeTeam} vs ${p.match.awayTeam}`, pred:predMarket, actual, correct:isCorrect, score:`${p.match.FTHG}-${p.match.FTAG}`});
             
-            // Profit avec mise 10€ si cotes disponibles
             let odds=0;
             if(predMarket==='1') odds = p.b365H;
             else if(predMarket==='X') odds = p.b365D;
@@ -1531,7 +1767,6 @@ const App = {
         const avgLogLoss=total>0?logLossSum/total:0;
         const roi=totalStaked>0?profit/totalStaked*100:0;
 
-        // Générer le graphique de calibration
         let chartHtml = '<div style="margin:12px 0;background:#0d1117;padding:10px;border-radius:8px;">';
         chartHtml += '<div style="font-weight:bold;margin-bottom:6px;">📉 Log-Loss en fonction de la température</div>';
         chartHtml += '<div style="display:flex;flex-wrap:wrap;gap:2px;">';
@@ -1574,7 +1809,6 @@ const App = {
         showToast(`✅ Calibration: température ${bestTemp.toFixed(2)}, Log-Loss ${avgLogLoss.toFixed(4)}`);
     },
 
-    // ===== CALIBRATION DIAGRAM =====
     async runCalibration(){
         const season=document.getElementById('calibrationSeason').value||null;
         const matches=await DB.getMatches(season);
@@ -1585,13 +1819,14 @@ const App = {
 
         const allPreds=[];
         for(const match of matches){
-            const homeName=match.homeTeam; const awayName=match.awayTeam;
+            const homeName = normalizeTeamName(match.homeTeam);
+            const awayName = normalizeTeamName(match.awayTeam);
             let homeTeam=await DB.getTeam(homeName); if(!homeTeam)homeTeam=createEmptyTeam(homeName);
             let awayTeam=await DB.getTeam(awayName); if(!awayTeam)awayTeam=createEmptyTeam(awayName);
             const seasonData=await DB.getSeasons(match.season);
             if(seasonData.length===0)continue;
-            const hStats=seasonData.find(s=>s.team===homeName);
-            const aStats=seasonData.find(s=>s.team===awayName);
+            const hStats = Engine.findTeamInSeasonData(homeName, seasonData);
+            const aStats = Engine.findTeamInSeasonData(awayName, seasonData);
             if(!hStats||!aStats)continue;
             homeTeam.xG=hStats.xG; homeTeam.xGA=hStats.xGA; homeTeam.goals=hStats.goals; homeTeam.ga=hStats.ga; homeTeam.matches=hStats.matches;
             awayTeam.xG=aStats.xG; awayTeam.xGA=aStats.xGA; awayTeam.goals=aStats.goals; awayTeam.ga=aStats.ga; awayTeam.matches=aStats.matches;
@@ -1665,7 +1900,6 @@ const App = {
 
     printBacktest(){ window.print(); },
 
-    // ===== AUTRES MÉTHODES =====
     async saveBetToTracking(){
         if(!this.lastAnalysisResult){ showToast('❌ Analyse d\'abord'); return; }
         const betType=document.getElementById('betTypeSelect').value;
@@ -1765,8 +1999,10 @@ const App = {
         const homeName=document.getElementById('analysisHome').value.trim();
         const awayName=document.getElementById('analysisAway').value.trim();
         if(!homeName||!awayName)return;
-        let homeTeam=await DB.getTeam(homeName); let awayTeam=await DB.getTeam(awayName);
-        if(!homeTeam)homeTeam=createEmptyTeam(homeName); if(!awayTeam)awayTeam=createEmptyTeam(awayName);
+        const homeNorm = normalizeTeamName(homeName);
+        const awayNorm = normalizeTeamName(awayName);
+        let homeTeam=await DB.getTeam(homeNorm); let awayTeam=await DB.getTeam(awayNorm);
+        if(!homeTeam)homeTeam=createEmptyTeam(homeNorm); if(!awayTeam)awayTeam=createEmptyTeam(awayNorm);
         const eloK=20; const expectedHome=1/(1+Math.pow(10,((awayTeam.elo||1500)-(homeTeam.elo||1500))/400)); const expectedAway=1-expectedHome;
         let actualHome=homeGoals>awayGoals?1:(homeGoals===awayGoals?0.5:0); let actualAway=1-actualHome;
         homeTeam.elo=(homeTeam.elo||1500)+eloK*(actualHome-expectedHome); awayTeam.elo=(awayTeam.elo||1500)+eloK*(actualAway-expectedAway);
@@ -1809,7 +2045,6 @@ const App = {
         }else scorersContainer.innerHTML='<div style="color:var(--sub);">Importez des joueurs.</div>';
     },
 
-    // IMPORTS
     async importSeason(overwrite=false){
         const raw=document.getElementById('seasonInput').value.trim();
         const seasonName=document.getElementById('seasonName').value.trim();
@@ -1825,8 +2060,20 @@ const App = {
             const idx={}; headers.forEach((h,i)=>idx[h]=i);
             const items=[]; for(let i=1;i<cleaned.length;i++){ const cols=cleaned[i].split(';').map(c=>c.trim()); if(cols.length<headers.length)continue; const obj={}; headers.forEach((h,j)=>{ obj[h]=parseFloat(cols[j])||cols[j]; }); ['number','matches','wins','draws','loses','goals','ga','points','xG','NPxG','xGA','NPxGA','NPxGD','ppda','ppda_allowed','deep','deep_allowed','xPTS','cornersFor','cornersAgainst'].forEach(f=>{ if(obj[f]!==undefined&&!isNaN(parseFloat(obj[f])))obj[f]=parseFloat(obj[f]); }); items.push(obj); }
             if(items.length===0){ document.getElementById('seasonStatus').innerHTML='<span style="color:var(--red)">❌ Aucune donnée valide.</span>'; return; }
+            for(const item of items){
+                const normalizedName = normalizeTeamName(item.team);
+                item.team = normalizedName;
+            }
             await DB.saveSeason(seasonName, items);
-            for(const item of items){ let team=await DB.getTeam(item.team); if(!team)team=createEmptyTeam(item.team); Object.assign(team,item); team.league=seasonName; await DB.saveTeam(team); }
+            for(const item of items){
+                const teamName = normalizeTeamName(item.team);
+                let team=await DB.getTeam(teamName);
+                if(!team)team=createEmptyTeam(teamName);
+                Object.assign(team,item);
+                team.name = teamName;
+                team.league=seasonName;
+                await DB.saveTeam(team);
+            }
             this.teams=await DB.getAllTeams(); this.refreshUI(); this.renderSeasons();
             document.getElementById('seasonStatus').innerHTML=`<span style="color:var(--green)">✅ ${items.length} équipes importées pour "${seasonName}"</span>`;
             document.getElementById('seasonInput').value=''; showToast(`✅ Saison "${seasonName}" importée`);
@@ -1847,7 +2094,7 @@ const App = {
             if(missing.length>0){ document.getElementById('scorerStatus').innerHTML=`<span style="color:var(--red)">❌ En-têtes manquants: ${missing.join(', ')}</span>`; return; }
             const idx={}; headers.forEach((h,i)=>idx[h]=i);
             const players=[]; for(let i=1;i<cleaned.length;i++){ const cols=cleaned[i].split(';').map(c=>c.trim()); if(cols.length<headers.length)continue; const minutes=parseFloat(cols[idx.min])||0; if(minutes===0)continue; const goals=parseFloat(cols[idx.goals])||0; const xG=parseFloat(cols[idx.xG])||0; const xG90=parseFloat(cols[idx.xG90])||0; const goalsPer90=(goals/minutes)*90; const valueScore=(xG90/Math.max(0.01,goalsPer90))*(xG90/1.5);
-                players.push({number:parseInt(cols[idx.number])||0,name:cols[idx.player]||'Joueur',team:cols[idx.team]||'Sans équipe',apps:parseInt(cols[idx.apps])||0,minutes,goals,NPG:parseFloat(cols[idx.NPG])||0,assists:parseFloat(cols[idx.a])||0,xG,NPxG:parseFloat(cols[idx.NPxG])||0,xA:parseFloat(cols[idx.xA])||0,xG90,NPxG90:parseFloat(cols[idx.NPxG90])||0,xA90:parseFloat(cols[idx.xA90])||0,xG90xA90:parseFloat(cols[idx.xG90xA90])||0,NPxG90xA90:parseFloat(cols[idx.NPxG90xA90])||0,xGChain90:parseFloat(cols[idx.xGChain90])||0,xGBuildup90:parseFloat(cols[idx.xGBuildup90])||0,goalsPer90,valueScore}); }
+                players.push({number:parseInt(cols[idx.number])||0,name:cols[idx.player]||'Joueur',team:normalizeTeamName(cols[idx.team]||'Sans équipe'),apps:parseInt(cols[idx.apps])||0,minutes,goals,NPG:parseFloat(cols[idx.NPG])||0,assists:parseFloat(cols[idx.a])||0,xG,NPxG:parseFloat(cols[idx.NPxG])||0,xA:parseFloat(cols[idx.xA])||0,xG90,NPxG90:parseFloat(cols[idx.NPxG90])||0,xA90:parseFloat(cols[idx.xA90])||0,xG90xA90:parseFloat(cols[idx.xG90xA90])||0,NPxG90xA90:parseFloat(cols[idx.NPxG90xA90])||0,xGChain90:parseFloat(cols[idx.xGChain90])||0,xGBuildup90:parseFloat(cols[idx.xGBuildup90])||0,goalsPer90,valueScore}); }
             if(players.length===0){ document.getElementById('scorerStatus').innerHTML='<span style="color:var(--red)">❌ Aucun joueur valide.</span>'; return; }
             await DB.saveScorers(players, season);
             this.scorersData=await DB.getScorers(); this.refreshUI();
@@ -1867,7 +2114,7 @@ const App = {
             if(lines.length===0){ document.getElementById('matchesStatus').innerHTML='<span style="color:var(--red)">❌ Aucune donnée.</span>'; return; }
             let sep=','; if(lines[0].includes(';')&&!lines[0].includes(','))sep=';';
             const headers=lines[0].split(sep).map(h=>h.trim());
-            const matches=[]; for(let i=1;i<lines.length;i++){ const cols=lines[i].split(sep).map(c=>c.trim()); if(cols.length<headers.length)continue; const match={}; headers.forEach((h,j)=>match[h]=cols[j]||''); const home=match.HomeTeam||''; const away=match.AwayTeam||''; const FTHG=parseInt(match.FTHG)||0; const FTAG=parseInt(match.FTAG)||0; if(home&&away){ matches.push({season,homeTeam:home,awayTeam:away,FTHG,FTAG,raw:match}); } }
+            const matches=[]; for(let i=1;i<lines.length;i++){ const cols=lines[i].split(sep).map(c=>c.trim()); if(cols.length<headers.length)continue; const match={}; headers.forEach((h,j)=>match[h]=cols[j]||''); const home=normalizeTeamName(match.HomeTeam||''); const away=normalizeTeamName(match.AwayTeam||''); const FTHG=parseInt(match.FTHG)||0; const FTAG=parseInt(match.FTAG)||0; if(home&&away){ matches.push({season,homeTeam:home,awayTeam:away,FTHG,FTAG,raw:match}); } }
             if(matches.length===0){ document.getElementById('matchesStatus').innerHTML='<span style="color:var(--red)">❌ Aucun match valide.</span>'; return; }
             await DB.saveMatches(matches, season);
             document.getElementById('matchesStatus').innerHTML=`<span style="color:var(--green)">✅ ${matches.length} matchs importés pour "${season}"</span>`;
@@ -1891,10 +2138,40 @@ const App = {
         const file=input.files[0]; if(!file)return;
         try{
             const text=await file.text(); const data=JSON.parse(text);
-            if(data.seasons&&Array.isArray(data.seasons)){ const grouped={}; data.seasons.forEach(item=>{ if(!grouped[item.seasonName])grouped[item.seasonName]=[]; grouped[item.seasonName].push(item); }); for(const [sn,items] of Object.entries(grouped)){ await DB.saveSeason(sn,items); } showToast('✅ Saisons importées'); }
-            if(data.scorers&&Array.isArray(data.scorers)){ const grouped={}; data.scorers.forEach(p=>{ if(!grouped[p.season])grouped[p.season]=[]; grouped[p.season].push(p); }); for(const [season,players] of Object.entries(grouped)){ await DB.saveScorers(players,season); } this.scorersData=await DB.getScorers(); showToast(`✅ ${data.scorers.length} joueurs`); }
-            if(data.matches&&Array.isArray(data.matches)){ const grouped={}; data.matches.forEach(m=>{ if(!grouped[m.season])grouped[m.season]=[]; grouped[m.season].push(m); }); for(const [season,matches] of Object.entries(grouped)){ await DB.saveMatches(matches,season); } showToast('✅ Matchs importés'); await this.updateMatchCount(); }
-            if(data.teams&&Array.isArray(data.teams)){ for(const team of data.teams){ await DB.saveTeam(team); } this.teams=await DB.getAllTeams(); showToast(`✅ ${data.teams.length} équipes`); }
+            if(data.seasons&&Array.isArray(data.seasons)){
+                const grouped={}; data.seasons.forEach(item=>{ const n=normalizeTeamName(item.team||''); if(n){ const copy={...item, team:n}; if(!grouped[item.seasonName])grouped[item.seasonName]=[]; grouped[item.seasonName].push(copy); } });
+                for(const [sn,items] of Object.entries(grouped)){ await DB.saveSeason(sn,items); }
+                for(const [sn,items] of Object.entries(grouped)){
+                    for(const item of items){
+                        const teamName=normalizeTeamName(item.team);
+                        let team=await DB.getTeam(teamName);
+                        if(!team)team=createEmptyTeam(teamName);
+                        Object.assign(team,item);
+                        team.name=teamName;
+                        team.league=sn;
+                        await DB.saveTeam(team);
+                    }
+                }
+                this.teams=await DB.getAllTeams();
+                showToast('✅ Saisons importées');
+            }
+            if(data.scorers&&Array.isArray(data.scorers)){
+                const grouped={}; data.scorers.forEach(p=>{ const n=normalizeTeamName(p.team||''); if(n){ const copy={...p, team:n}; if(!grouped[p.season])grouped[p.season]=[]; grouped[p.season].push(copy); } });
+                for(const [season,players] of Object.entries(grouped)){ await DB.saveScorers(players,season); }
+                this.scorersData=await DB.getScorers(); showToast(`✅ ${data.scorers.length} joueurs`);
+            }
+            if(data.matches&&Array.isArray(data.matches)){
+                const grouped={}; data.matches.forEach(m=>{ const h=normalizeTeamName(m.homeTeam||''); const a=normalizeTeamName(m.awayTeam||''); if(h&&a){ const copy={...m, homeTeam:h, awayTeam:a}; if(!grouped[m.season])grouped[m.season]=[]; grouped[m.season].push(copy); } });
+                for(const [season,matches] of Object.entries(grouped)){ await DB.saveMatches(matches,season); }
+                showToast('✅ Matchs importés'); await this.updateMatchCount();
+            }
+            if(data.teams&&Array.isArray(data.teams)){
+                for(const team of data.teams){
+                    const n=normalizeTeamName(team.name||'');
+                    if(n){ const copy={...team, name:n}; await DB.saveTeam(copy); }
+                }
+                this.teams=await DB.getAllTeams(); showToast(`✅ ${data.teams.length} équipes`);
+            }
             if(data.calibration){ await DB.saveCalibrationResult(data.calibration); }
             this.refreshUI(); this.renderSeasons(); this.populateScorerFilters(); this.renderScorers(); showToast('📥 Import terminé');
         }catch(e){ console.error(e); showToast(`❌ Erreur: ${e.message}`); }
@@ -1970,7 +2247,6 @@ const App = {
         container.innerHTML=html; showToast(`💎 ${players.length} value bets`);
     },
 
-    // LIGUES
     async loadCustomLeagues(){ await LeagueConfig.loadCustomLeagues(); },
     async populateLeagueSelects(){ const all=await LeagueConfig.getAllLeagues(); },
     async renderLeagueManagement(){
@@ -2031,7 +2307,6 @@ const App = {
         else{ await DB.deleteLeague(name); await this.loadCustomLeagues(); this.renderLeagueManagement(); showToast(`🗑️ Supprimée`); }
     },
 
-    // GESTION
     searchDataTeam(){
         const search=document.getElementById('dataTeamSearch').value.trim().toLowerCase();
         const list=document.getElementById('dataTeamList');
@@ -2090,7 +2365,6 @@ const App = {
         this.navigateTo('pg-analyse'); this.refreshDiagnostic();
     },
 
-    // Tracking JSON
     async importTrackingJSON(input){
         const file=input.files[0]; if(!file)return;
         try{
@@ -2125,12 +2399,11 @@ const App = {
         else{ status.innerHTML=`✅ ${this.trackingData.length} paris.`; status.style.color='var(--green)'; }
     },
 
-    // Comparaison
     async runComparison(){
         const teamName=document.getElementById('compareTeamName').value.trim();
         if(!teamName){ showToast('❌ Entrez un nom'); return; }
         const seasons=await DB.getSeasons(); const container=document.getElementById('comparisonResults');
-        const stats=[]; for(const s of seasons){ if(s.team===teamName){ stats.push({season:s.seasonName, xG:s.xG/s.matches, xGA:s.xGA/s.matches, goals:s.goals/s.matches, ga:s.ga/s.matches, points:s.points, matches:s.matches}); } }
+        const stats=[]; for(const s of seasons){ const n=normalizeTeamName(s.team); if(n===normalizeTeamName(teamName)){ stats.push({season:s.seasonName, xG:s.xG/s.matches, xGA:s.xGA/s.matches, goals:s.goals/s.matches, ga:s.ga/s.matches, points:s.points, matches:s.matches}); } }
         if(stats.length===0){ container.innerHTML='<div style="color:var(--sub);">Aucune donnée.</div>'; return; }
         stats.sort((a,b)=>a.season.localeCompare(b.season));
         let html=`<div style="font-weight:bold;color:var(--cyan);margin-bottom:8px;">📊 Évolution de ${teamName}</div>
@@ -2142,9 +2415,6 @@ const App = {
     }
 };
 
-// ======================================================================
-// 7. INITIALISATION
-// ======================================================================
 window.addEventListener('DOMContentLoaded', ()=>App.init());
 </script>
 </body>
